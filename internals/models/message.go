@@ -1,8 +1,13 @@
 package models
 
+import "github.com/gorilla/websocket"
+
 type Message struct {
-	SenderID    string `json:"sender_id"`
-	RecipientID string `json:"recipient_id"`
-	Content     string `json:"content"`
-	IsJoined    bool   `json:false`
+	Content string `json:"content"`
+}
+
+type RoomMessage struct {
+	RoomID  string          `json:"room_id"`
+	Message Message         `json:"message"`
+	Sender  *websocket.Conn `json:"sender"`
 }

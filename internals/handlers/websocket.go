@@ -15,8 +15,8 @@ var (
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		}}
-	clients   = make(map[*websocket.Conn]bool)
-	broadcast = make(chan models.Message)
+	rooms     = make(map[string]map[*websocket.Conn]bool)
+	broadcast = make(chan models.RoomMessage)
 	mu        sync.Mutex
 )
 
@@ -24,44 +24,66 @@ func HandleConnections(ctx *gin.Context) {
 	writer := ctx.Writer
 	requester := ctx.Request
 
+	roomID := ctx.Query("room_id")
+
 	ws, err := upgrader.Upgrade(writer, requester, nil)
 	if err != nil {
-		log.Println("Error Occured in websocket upgrader", err.Error())
+		log.Println("Error occurred in websocket upgrader", err.Error())
 		return
 	}
 	defer ws.Close()
+
 	mu.Lock()
-	clients[ws] = true
+	if _, ok := rooms[roomID]; !ok {
+		rooms[roomID] = make(map[*websocket.Conn]bool)
+	}
+	rooms[roomID][ws] = true
 	mu.Unlock()
+
 	for {
 		var msg models.Message
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			log.Println("Error Occured while reading the msg", err.Error())
+			log.Println("Error occurred while reading the msg", err.Error())
 			mu.Lock()
-			delete(clients, ws)
+			delete(rooms[roomID], ws)
+			if len(rooms[roomID]) == 0 {
+				delete(rooms, roomID)
+			}
 			mu.Unlock()
 			break
 		}
-		broadcast <- msg
-
+		broadcast <- models.RoomMessage{
+			RoomID:  roomID,
+			Message: msg,
+			Sender:  ws,
+		}
 	}
 }
 
 func HandleMessage() {
-	for {
-		msg := <-broadcast
+	for roomMsg := range broadcast {
 		mu.Lock()
-		for client := range clients {
-			err := client.WriteJSON(msg)
-			if err != nil {
-				log.Println("Error Occured while sending the msg", err.Error())
-
-				delete(clients, client)
-
-			}
-
-		}
+		clients, ok := rooms[roomMsg.RoomID]
 		mu.Unlock()
+		if !ok {
+			continue
+		}
+
+		for client := range clients {
+			if client != roomMsg.Sender {
+				err := client.WriteJSON(roomMsg.Message)
+				if err != nil {
+					log.Println("Error occurred while sending the msg", err.Error())
+					client.Close()
+					mu.Lock()
+					delete(clients, client)
+					if len(clients) == 0 {
+						delete(rooms, roomMsg.RoomID)
+					}
+					mu.Unlock()
+				}
+			}
+		}
 	}
 }
