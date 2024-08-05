@@ -1,6 +1,8 @@
 package models
 
 type Message struct {
-	Username string `json:"username"`
-	Message  string `json:"message"`
+	SenderID    string `json:"sender_id"`
+	RecipientID string `json:"recipient_id"`
+	Content     string `json:"content"`
+	IsJoined    bool   `json:false`
 }
