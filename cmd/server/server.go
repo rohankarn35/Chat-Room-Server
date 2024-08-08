@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"websockets/internals/handlers"
 
 	"github.com/gin-contrib/cors"
@@ -9,6 +10,8 @@ import (
 
 func SetupRouter() *gin.Engine {
 	router := gin.Default()
+	fmt.Print("Server Started")
+
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"*"}, // Allow your Flutter web app's URL
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
