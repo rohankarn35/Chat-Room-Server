@@ -87,15 +87,15 @@ GET /join?roomId={roomId}
 ```
 #### Connect via WebSocket
 ```
-WS /ws/{roomId}
-```
+WS /ws/{roomId}widget
+```widget
   
 <h2>Built with</h2>
 
 Technologies used in the project:
 
 *   Golang
-*   GIn
+*   Gin
 *   Gorilla Websocket
 
 <h2>Contributing</h2>

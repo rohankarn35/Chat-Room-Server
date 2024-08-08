@@ -5,6 +5,7 @@ import (
 )
 
 func main() {
+
 	server.SetupRouter().Run(":3124")
 
 }
