@@ -3,43 +3,24 @@ package server
 import (
 	"websockets/internals/handlers"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter() *gin.Engine {
 	router := gin.Default()
-	// router.LoadHTMLGlob("internals/static files/*")
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"*"}, // Allow your Flutter web app's URL
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept"},
+	}))
 
-	// router.GET("/generate-token", pages.HomePage)
+	router.GET("/createRoom/:roomId/:roomName", handlers.CreateRoomHandlers)
 
-	// router.GET("/homePage", func(ctx *gin.Context) {
-	// 	ctx.HTML(200, "homepage.html", nil)
-	// })
-	// router.GET("/another-page", pages.MainPage)
+	router.GET("/join", handlers.JoinRoom)
 
-	// router.GET("/", func(ctx *gin.Context) {
-	// 	ctx.HTML(200, "homepage.html", nil)
-	// })
-	// router.POST("/generateRandomId", func(ctx *gin.Context) {
-	// 	newrng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	// 	uniqueId := authentication.GenerateUniqueID(newrng)
-	// 	ctx.Redirect(http.StatusSeeOther, "/user?Id="+uniqueId)
-
-	// })
-	// router.GET("/user", func(ctx *gin.Context) {
-	// 	id := ctx.Query("Id")
-	// 	if id == "" {
-	// 		ctx.String(http.StatusNotFound, "ID not Found")
-	// 		return
-	// 	}
-	// 	ctx.HTML(http.StatusOK, "user.html", gin.H{"ID": id})
-
-	// })
-	// router.GET("/chat", func(ctx *gin.Context) {
-	// 	ctx.HTML(200, "chat.html", nil)
-	// })
-	router.GET("/ws", handlers.HandleConnections)
-	go handlers.HandleMessage()
+	router.GET("/ws/:roomId", handlers.HandleConnections)
+	go handlers.HandleMessages()
 
 	return router
 

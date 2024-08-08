@@ -2,58 +2,59 @@ package handlers
 
 import (
 	"log"
-	"net/http"
-	"sync"
+	"websockets/internals/hub"
 	"websockets/internals/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
-var (
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		}}
-	rooms     = make(map[string]map[*websocket.Conn]bool)
-	broadcast = make(chan models.RoomMessage)
-	mu        sync.Mutex
-)
-
 func HandleConnections(ctx *gin.Context) {
 	writer := ctx.Writer
 	requester := ctx.Request
 
-	roomID := ctx.Query("room_id")
+	roomID := ctx.Param("roomId")
 
-	ws, err := upgrader.Upgrade(writer, requester, nil)
+	// Upgrade the HTTP request to a WebSocket connection
+	ws, err := hub.Upgrader.Upgrade(writer, requester, nil)
 	if err != nil {
 		log.Println("Error occurred in websocket upgrader", err.Error())
 		return
 	}
 	defer ws.Close()
 
-	mu.Lock()
-	if _, ok := rooms[roomID]; !ok {
-		rooms[roomID] = make(map[*websocket.Conn]bool)
-	}
-	rooms[roomID][ws] = true
-	mu.Unlock()
+	// Lock and handle the room creation
+	hub.Mu.Lock()
+	_, ok := hub.Rooms[roomID]
+	hub.Mu.Unlock()
 
+	if !ok {
+		errMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Room not found, create room first")
+		ws.WriteMessage(websocket.CloseMessage, errMsg)
+		return
+	}
+
+	hub.Mu.Lock()
+	hub.Rooms[roomID][ws] = true
+	hub.Mu.Unlock()
+
+	// Listen for incoming messages
 	for {
 		var msg models.Message
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			log.Println("Error occurred while reading the msg", err.Error())
-			mu.Lock()
-			delete(rooms[roomID], ws)
-			if len(rooms[roomID]) == 0 {
-				delete(rooms, roomID)
+			log.Println("Error occurred while reading the message", err.Error())
+			hub.Mu.Lock()
+			delete(hub.Rooms[roomID], ws)
+			if len(hub.Rooms[roomID]) == 0 {
+				delete(hub.Rooms, roomID)
 			}
-			mu.Unlock()
+			hub.Mu.Unlock()
 			break
 		}
-		broadcast <- models.RoomMessage{
+
+		// Broadcast the received message to the room
+		hub.Broadcast <- models.RoomMessage{
 			RoomID:  roomID,
 			Message: msg,
 			Sender:  ws,
@@ -61,11 +62,11 @@ func HandleConnections(ctx *gin.Context) {
 	}
 }
 
-func HandleMessage() {
-	for roomMsg := range broadcast {
-		mu.Lock()
-		clients, ok := rooms[roomMsg.RoomID]
-		mu.Unlock()
+func HandleMessages() {
+	for roomMsg := range hub.Broadcast {
+		hub.Mu.Lock()
+		clients, ok := hub.Rooms[roomMsg.RoomID]
+		hub.Mu.Unlock()
 		if !ok {
 			continue
 		}
@@ -74,14 +75,14 @@ func HandleMessage() {
 			if client != roomMsg.Sender {
 				err := client.WriteJSON(roomMsg.Message)
 				if err != nil {
-					log.Println("Error occurred while sending the msg", err.Error())
+					log.Println("Error occurred while sending the message", err.Error())
 					client.Close()
-					mu.Lock()
+					hub.Mu.Lock()
 					delete(clients, client)
 					if len(clients) == 0 {
-						delete(rooms, roomMsg.RoomID)
+						delete(hub.Rooms, roomMsg.RoomID)
 					}
-					mu.Unlock()
+					hub.Mu.Unlock()
 				}
 			}
 		}

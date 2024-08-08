@@ -3,7 +3,8 @@ package models
 import "github.com/gorilla/websocket"
 
 type Message struct {
-	Content string `json:"content"`
+	Username string `json:"username"`
+	Content  string `json:"content"`
 }
 
 type RoomMessage struct {

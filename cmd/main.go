@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	server.SetupRouter().Run(":8080")
+	server.SetupRouter().Run(":3124")
 	fmt.Print("Server Started")
 
 }
